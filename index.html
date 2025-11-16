@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Нейросеть</title>
+
+    <!-- Шрифты и Иконки -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- AI API -->
+    <script src="https://id-preview--5aac0d16-2231-4d70-a821-3ee6980b7f72.lovable.app/ai-api.js"></script>
+
+    <style>
+        :root {
+            --bg-main: #ffffff;
+            --bg-sidebar: #f0f2f5;
+            --bg-input: #f0f2f5;
+            --bg-history-hover: #e4e6e9;
+            --text-primary: #1f1f1f;
+            --text-secondary: #5f6368;
+            --border-color: #e0e2e6;
+            --font-family: 'Inter', sans-serif;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 16px; }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--bg-main);
+            color: var(--text-primary);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 260px;
+            background: var(--bg-sidebar);
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border-color);
+            flex-shrink: 0;
+        }
+        .sidebar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+        .new-chat-btn {
+            background: none; border: 1px solid var(--text-secondary); border-radius: 20px;
+            padding: 0.5rem 1rem; font-family: var(--font-family); font-size: 0.9rem;
+            cursor: pointer; display: flex; align-items: center; gap: 0.5rem;
+        }
+        .history-group { margin-bottom: 1.5rem; }
+        .history-group h3 {
+            font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);
+            text-transform: uppercase; padding: 0 0.5rem; margin-bottom: 0.5rem;
+        }
+        .history-item {
+            width: 100%; text-align: left; background: none; border: none;
+            padding: 0.6rem 0.5rem; border-radius: 8px; font-family: var(--font-family);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
+        }
+        .history-item:hover, .history-item.active { background: var(--bg-history-hover); }
+
+        .chat-container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        .chat-window {
+            flex-grow: 1;
+            padding: 1.5rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            max-width: 800px;
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        .message { display: flex; gap: 1rem; max-width: 100%; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .message .avatar {
+            width: 36px; height: 36px; border-radius: 50%; display: flex;
+            align-items: center; justify-content: center; color: white;
+            font-size: 1.2rem; flex-shrink: 0;
+            background: #dcdcdc;
+        }
+        .bot-message .avatar {
+            background: linear-gradient(135deg, #8e44ad, #3498db);
+        }
+        .message-content { display: flex; flex-direction: column; width: 100%; }
+        .message .sender-name { font-weight: 600; font-size: 1rem; margin-bottom: 0.25rem; }
+        .message .bubble { line-height: 1.7; font-size: 1rem; word-wrap: break-word; }
+        .message .bubble img { max-width: 250px; border-radius: 8px; margin-top: 10px; }
+
+        .input-wrapper {
+            padding: 1rem 1.5rem 1.5rem;
+            max-width: 800px;
+            width: 100%;
+            margin: 0 auto;
+            flex-shrink: 0;
+        }
+        .input-area {
+            background: var(--bg-input);
+            border-radius: 28px;
+            padding: 0.5rem 0.5rem 0.5rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        #message-input {
+            flex-grow: 1; border: none; background: transparent; font-size: 1rem;
+            font-family: var(--font-family); outline: none; padding: 0.6rem 0;
+        }
+        .input-button {
+            background: none; border: none; color: var(--text-secondary);
+            font-size: 1.2rem; cursor: pointer; transition: background-color 0.3s;
+            width: 44px; height: 44px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .input-button:hover { background: var(--bg-history-hover); }
+        .input-button.is-recording { color: var(--secondary-color); animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+
+        @media (max-width: 768px) {
+            .sidebar { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <button class="new-chat-btn"><i class="fa-solid fa-plus"></i> Новый чат</button>
+        </div>
+        <div class="history-list" id="history-list">
+             <!-- История будет рендериться здесь -->
+        </div>
+    </aside>
+
+    <main class="chat-container">
+        <div class="chat-window" id="chat-window">
+             <!-- Приветственное сообщение или текущий чат -->
+        </div>
+
+        <div class="input-wrapper">
+            <div class="input-area">
+                <input type="text" id="message-input" placeholder="Чем могу помочь?">
+                <button class="input-button" id="image-button" title="Прикрепить изображение"><i class="fa-solid fa-image"></i></button>
+                <button class="input-button" id="voice-button" title="Запись голоса"><i class="fa-solid fa-microphone"></i></button>
+            </div>
+        </div>
+        <input type="file" id="image-input-hidden" accept="image/*" style="display: none;">
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            window.AIApi.init({
+                apiUrl: "https://efilylwwdricygruzfoo.supabase.co/functions/v1/ai-chat",
+                apiKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmaWx5bHd3ZHJpY3lncnV6Zm9vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI0MDk4NTYsImV4cCI6MjA3Nzk4NTg1Nn0.ucYJuYmtDQ1mmxdn4m3jpI49fd9ejykkHsJWuVE1g"
+            });
+
+            const ui = {
+                chatWindow: document.getElementById('chat-window'),
+                messageInput: document.getElementById('message-input'),
+                imageButton: document.getElementById('image-button'),
+                voiceButton: document.getElementById('voice-button'),
+                hiddenImageInput: document.getElementById('image-input-hidden'),
+                historyList: document.getElementById('history-list'),
+                newChatBtn: document.querySelector('.new-chat-btn')
+            };
+            
+            let conversationHistory = []; let isRecording = false;
+            let mediaRecorder; let audioChunks = [];
+
+            const parseFormatting = (text) => {
+                let html = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                return html.replace(/\n/g, '<br>');
+            };
+
+            const addMessageToUI = (sender, content) => {
+                const isUser = sender === 'user';
+                const messageElement = document.createElement('div');
+                messageElement.className = `message ${sender}-message`;
+                const senderName = isUser ? 'Вы' : 'Нейросеть';
+                const avatarContent = isUser ? '<i class="fa-solid fa-user"></i>' : '<i class="fa-solid fa-robot"></i>';
+                
+                messageElement.innerHTML = `
+                    <div class="avatar">${avatarContent}</div>
+                    <div class="message-content">
+                        <div class="sender-name">${senderName}</div>
+                        <div class="bubble">${content}</div>
+                    </div>`;
+                ui.chatWindow.appendChild(messageElement);
+                ui.chatWindow.scrollTop = ui.chatWindow.scrollHeight;
+                return messageElement.querySelector('.bubble');
+            };
+
+            const saveHistory = () => {
+                localStorage.setItem('chatHistory', JSON.stringify(conversationHistory));
+                renderHistoryList();
+            };
+
+            const loadHistory = () => {
+                const saved = localStorage.getItem('chatHistory');
+                if (saved && JSON.parse(saved).length > 0) {
+                    conversationHistory = JSON.parse(saved);
+                    ui.chatWindow.innerHTML = '';
+                    conversationHistory.forEach(msg => addMessageToUI(msg.role, msg.content));
+                } else {
+                    startNewChat();
+                }
+                renderHistoryList();
+            };
+
+            const startNewChat = () => {
+                conversationHistory = [];
+                ui.chatWindow.innerHTML = '';
+                const welcomeMsg = "Привет! Чем могу помочь?";
+                addMessageToUI('bot', welcomeMsg);
+                conversationHistory.push({ role: 'bot', content: welcomeMsg });
+                saveHistory();
+            };
+
+            const renderHistoryList = () => {
+                ui.historyList.innerHTML = '';
+                const todayGroup = document.createElement('div');
+                todayGroup.className = 'history-group';
+                todayGroup.innerHTML = '<h3>Сегодня</h3>';
+                
+                const title = conversationHistory.length > 1 ? conversationHistory[1].content : "Новый чат";
+                const historyItem = document.createElement('button');
+                historyItem.className = 'history-item active';
+                historyItem.textContent = title.substring(0, 25) + (title.length > 25 ? '...' : '');
+                
+                todayGroup.appendChild(historyItem);
+                ui.historyList.appendChild(todayGroup);
+            };
+
+            const handleSend = () => {
+                const messageText = ui.messageInput.value.trim();
+                const attachedFile = ui.hiddenImageInput.files[0];
+                
+                if (!messageText && !attachedFile) return;
+
+                if (attachedFile) {
+                    const userContent = parseFormatting(messageText) + `<br><img src="${URL.createObjectURL(attachedFile)}" alt="attachment">`;
+                    addMessageToUI('user', userContent);
+                    conversationHistory.push({ role: 'user', content: `[Изображение] ${messageText}` });
+                    saveHistory();
+                    callImageAI(messageText, attachedFile);
+                } else {
+                    addMessageToUI('user', parseFormatting(messageText));
+                    const longTextRequest = isLongTextRequest(messageText);
+                    conversationHistory.push({ role: 'user', content: messageText });
+                    saveHistory();
+                    
+                    if (longTextRequest) {
+                        generateLongText(longTextRequest);
+                    } else {
+                        callTextAI();
+                    }
+                }
+                ui.messageInput.value = '';
+                ui.hiddenImageInput.value = null;
+            };
+            
+            const callTextAI = () => {
+                const bubble = addMessageToUI('bot', `...`);
+                let fullResponse = "";
+                const recentHistory = conversationHistory.slice(-8);
+                const aiPrompt = recentHistory.map(m => `${m.role}: ${m.content}`).join('\n');
+                window.AIApi.sendMessage(aiPrompt, (chunk) => {
+                    fullResponse += chunk;
+                    bubble.innerHTML = parseFormatting(fullResponse);
+                }, () => {
+                    conversationHistory.push({ role: 'bot', content: fullResponse });
+                    saveHistory();
+                }, (error) => {
+                    bubble.innerHTML = "Произошла ошибка API.";
+                    console.error(error);
+                });
+            };
+
+            const callImageAI = (question, imageFile) => {
+                const bubble = addMessageToUI('bot', `Анализирую изображение...`);
+                let fullResponse = "";
+                window.AIApi.sendImage(question, imageFile, (chunk) => {
+                    fullResponse += chunk;
+                    bubble.innerHTML = parseFormatting(fullResponse);
+                }, () => {
+                    conversationHistory.push({ role: 'bot', content: fullResponse });
+                    saveHistory();
+                }, (error) => {
+                    bubble.innerHTML = "Ошибка анализа изображения.";
+                    console.error(error);
+                });
+            };
+            
+            const callVoiceAI = (audioBlob) => {
+                addMessageToUI('user', `<i><i class="fa-solid fa-waveform"></i> Голосовое сообщение</i>`);
+                const bubble = addMessageToUI('bot', `...`);
+                let fullResponse = "";
+                window.AIApi.sendVoice(audioBlob, (chunk) => {
+                    fullResponse += chunk;
+                    bubble.innerHTML = parseFormatting(fullResponse);
+                }, () => {
+                    conversationHistory.push({ role: 'user', content: '[Голосовое сообщение]' });
+                    conversationHistory.push({ role: 'bot', content: fullResponse });
+                    saveHistory();
+                }, (error) => {
+                    bubble.innerHTML = "Ошибка распознавания голоса.";
+                    console.error(error);
+                });
+            };
+
+            const toggleRecording = async () => {
+                if (isRecording) {
+                    mediaRecorder.stop();
+                } else {
+                    try {
+                        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                        isRecording = true;
+                        ui.voiceButton.classList.add("is-recording");
+                        audioChunks = [];
+                        mediaRecorder = new MediaRecorder(stream);
+                        mediaRecorder.ondataavailable = (e => audioChunks.push(e.data));
+                        mediaRecorder.onstop = (() => {
+                            const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
+                            callVoiceAI(audioBlob);
+                            stream.getTracks().forEach(track => track.stop());
+                            isRecording = false;
+                            ui.voiceButton.classList.remove("is-recording");
+                        });
+                        mediaRecorder.start();
+                    } catch (error) {
+                        console.error("Mic error:", error);
+                        alert("Ошибка доступа к микрофону.");
+                    }
+                }
+            };
+
+            const isLongTextRequest = (text) => {
+                const match = text.match(/(напиши|создай|сделай)\s+(статью|текст|рассказ|историю)\s+(?:на\s+(\d+)\s+слов\s+)?про\s+(.+)/i);
+                if (match && match[4]) {
+                    return { 
+                        topic: match[4].trim(),
+                        words: match[3] ? parseInt(match[3], 10) : 2000 
+                    };
+                }
+                return null;
+            };
+
+            const generateLongText = async ({ topic, words }) => {
+                const bubble = addMessageToUI('bot', `Готовлюсь к генерации текста...`);
+                let fullText = "";
+                const CONTINUE_SIGNAL = '[ПРОДОЛЖИТЬ]';
+                const END_SIGNAL = '[КОНЕЦ]';
+                
+                const setupPrompt = `Ты — писатель, который пишет длинный текст по частям. Я буду давать тебе тему, а потом говорить 'продолжай'. Ты должен писать следующую часть текста. В конце каждой части ставь сигнал ${CONTINUE_SIGNAL}. Когда тема будет полностью раскрыта, поставь сигнал ${END_SIGNAL}. Ты понял задачу? Ответь только 'Да, понял.' и больше ничего.`;
+
+                const callApiPromise = (prompt, onChunk) => new Promise((resolve, reject) => window.AIApi.sendMessage(prompt, onChunk, resolve, reject));
+
+                try {
+                    let confirmation = "";
+                    await callApiPromise(setupPrompt, chunk => confirmation += chunk);
+
+                    if (!confirmation.includes('Да, понял')) {
+                        bubble.innerHTML = "Не удалось перевести ИИ в режим писателя. Попробуйте снова.";
+                        return;
+                    }
+
+                    let isFinished = false;
+                    let currentPrompt = `Начинай писать на тему: ${topic}`;
+                    while (!isFinished) {
+                        let part = "";
+                        await callApiPromise(currentPrompt, chunk => {
+                            part += chunk;
+                            const currentWords = (fullText + part.split(CONTINUE_SIGNAL)[0].split(END_SIGNAL)[0]).split(/\s+/).length;
+                            const progress = Math.min(100, Math.round((currentWords / words) * 100));
+                            bubble.innerHTML = `Генерация (~${currentWords} / ${words} слов)... ${progress}%<br><br>` + parseFormatting(fullText + part);
+                        });
+                        
+                        if (part.trim().endsWith(END_SIGNAL)) {
+                            isFinished = true;
+                            part = part.trim().slice(0, -END_SIGNAL.length);
+                        } else if (part.trim().endsWith(CONTINUE_SIGNAL)) {
+                            part = part.trim().slice(0, -CONTINUE_SIGNAL.length);
+                        } else {
+                            isFinished = true;
+                        }
+
+                        fullText += part;
+                        
+                        if (isFinished || fullText.split(/\s+/).length >= words) break;
+                        currentPrompt = "продолжай";
+                    }
+
+                    bubble.innerHTML = parseFormatting(fullText);
+                    conversationHistory.push({ role: 'bot', content: fullText });
+                    saveHistory();
+
+                } catch (error) {
+                    bubble.innerHTML = "Произошла ошибка во время генерации.";
+                    console.error("Ошибка генерации:", error);
+                }
+            };
+
+            ui.messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); handleSend(); } });
+            ui.voiceButton.addEventListener('click', toggleRecording);
+            ui.imageButton.addEventListener('click', () => ui.hiddenImageInput.click());
+            ui.hiddenImageInput.addEventListener('change', (e) => {
+                if (e.target.files[0]) { handleSend(ui.messageInput.value, e.target.files[0]); }
+            });
+            ui.newChatBtn.addEventListener('click', startNewChat);
+            
+            loadHistory();
+        });
+    </script>
+</body>
+</html>
